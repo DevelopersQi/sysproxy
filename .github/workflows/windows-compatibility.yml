@@ -1,0 +1,63 @@
+name: Windows compatibility build
+
+on:
+  push:
+    branches: [main, "win7-compatibility-validation"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2019, windows-2022]
+        python-version: ["3.7.9", "3.11.9"]
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Show build environment
+        shell: pwsh
+        run: |
+          python -VV
+          python -m pip --version
+          python -m pip debug --verbose
+          cl 2>&1 | Select-Object -First 3
+
+      - name: Install isolated build dependencies
+        run: python -m pip install --upgrade "pip<25" "setuptools<81" wheel "pybind11>=2.10,<3"
+
+      - name: Build Windows wheel
+        run: python setup.py bdist_wheel
+
+      - name: Install built wheel
+        shell: pwsh
+        run: |
+          $wheel = Get-ChildItem dist\*.whl | Select-Object -First 1
+          if (-not $wheel) { throw "No wheel was produced" }
+          python -m pip install --no-deps --force-reinstall $wheel.FullName
+
+      - name: Smoke-test extension and public API
+        shell: pwsh
+        run: |
+          python -c "import sysproxy; print(sysproxy.__file__); required = ('off', 'pac', 'set', 'daemon_off', 'daemon_on_'); missing = [name for name in required if not callable(getattr(sysproxy, name, None))]; print('missing:', missing); assert not missing"
+          python -c "import sys; assert sys.version_info >= (3, 7)"
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: sysproxy-${{ matrix.os }}-py${{ matrix.python-version }}
+          path: dist/*.whl
+          if-no-files-found: error
