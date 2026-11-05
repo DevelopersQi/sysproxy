@@ -31,8 +31,8 @@ setup(
     author='Loren Eteval',
     author_email='loren.eteval@proton.me',
     url='https://github.com/LorenEteval/sysproxy',
-    setup_requires=['pybind11'],
-    install_requires=['pybind11'],
+    setup_requires=['pybind11>=2.10,<3'],
+    install_requires=['pybind11>=2.10,<3'],
     ext_modules=[
         Extension(
             'sysproxy',
@@ -42,7 +42,13 @@ setup(
                 # Path to pybind11 headers
                 Pybind11Include(),
             ],
-            define_macros=[('UNICODE', None), ('_UNICODE', None)],
+            define_macros=[
+                ('UNICODE', None),
+                ('_UNICODE', None),
+                # Keep the extension's declared Windows API baseline at Windows 7.
+                ('WINVER', '0x0601'),
+                ('_WIN32_WINNT', '0x0601'),
+            ],
             libraries=['Wininet', 'rasapi32', 'user32'],
         )
     ],
